@@ -1,13 +1,14 @@
 extern crate regex;
 
+mod ast;
 mod lexer;
+mod parser;
+
 use crate::lexer::Lexer;
+use crate::parser::Parser;
 
 fn main() {
     let code: &str = r#"
-        include "a.cl"
-        include "b.cl"
-
         func main(a: int32, b: int32) {
             return a + b;
         }
@@ -16,6 +17,7 @@ fn main() {
     let mut lexer = Lexer::new(code);
     let tokens = lexer.tokenize().unwrap();
 
-    tokens.iter()
-        .for_each(|t| println!("{:?}", t));
+    tokens.iter().for_each(|t| println!("{:?}", t));
+
+    Parser::new(tokens).parse();
 }
