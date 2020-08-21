@@ -1,46 +1,32 @@
 use crate::ast::node::Node;
-use crate::ast::types::{Type, TypeNode};
-use crate::ast::variable::{Variable, VariableNode};
+use crate::ast::types::{TypeNode};
 use core::fmt;
+// use std::collections::HashMap;
 
-mod node;
-mod types;
-mod variable;
+pub mod node;
+pub mod types;
 
-pub type Identifier<'ast> = &'ast str;
-pub type FunctionIdentifier<'ast> = Identifier<'ast>;
+pub type Identifier = String;
+pub type FunctionIdentifier = Identifier;
 
-pub enum Expression<'ast> {
-    Identifier(Identifier<'ast>),
-    Int8Constant(i8),
-    Int16Constant(i16),
+#[derive(Debug, Clone)]
+pub enum Expression {
+    Identifier(Identifier),
     Int32Constant(i32),
-    Int64Constant(i64),
-    UInt8Constant(u8),
-    UInt16Constant(u16),
-    UInt32Constant(u32),
-    UInt64Constant(u64),
     BooleanConstant(bool),
-    Add(Box<Expression<'ast>>, Box<Expression<'ast>>),
-    Subtract(Box<Expression<'ast>>, Box<Expression<'ast>>),
-    Multiply(Box<Expression<'ast>>, Box<Expression<'ast>>),
-    Divide(Box<Expression<'ast>>, Box<Expression<'ast>>),
-    FunctionCall(FunctionIdentifier<'ast>, Vec<ExpressionNode<'ast>>),
+    Add(Box<ExpressionNode>, Box<ExpressionNode>),
+    Subtract(Box<ExpressionNode>, Box<ExpressionNode>),
+    Multiply(Box<ExpressionNode>, Box<ExpressionNode>),
+    Divide(Box<ExpressionNode>, Box<ExpressionNode>),
+    FunctionCall(FunctionIdentifier, Vec<ExpressionNode>),
 }
 
-pub type ExpressionNode<'ast> = Node<Expression<'ast>>;
+pub type ExpressionNode = Node<Expression>;
 
-impl<'ast> fmt::Display for Expression<'ast> {
+impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Expression::Int8Constant(ref i) => write!(f, "{}", i),
-            Expression::Int16Constant(ref i) => write!(f, "{}", i),
             Expression::Int32Constant(ref i) => write!(f, "{}", i),
-            Expression::Int64Constant(ref i) => write!(f, "{}", i),
-            Expression::UInt8Constant(ref i) => write!(f, "{}", i),
-            Expression::UInt16Constant(ref i) => write!(f, "{}", i),
-            Expression::UInt32Constant(ref i) => write!(f, "{}", i),
-            Expression::UInt64Constant(ref i) => write!(f, "{}", i),
             Expression::Identifier(ref identifier) => write!(f, "{}", identifier),
             Expression::BooleanConstant(b) => write!(f, "{}", b),
             Expression::Add(ref left, ref right) => write!(f, "({} + {})", left, right),
@@ -62,13 +48,33 @@ impl<'ast> fmt::Display for Expression<'ast> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Assignee<'ast> {
-    Identifier(Variable<'ast>),
+pub struct Variable {
+    pub id: Identifier,
+    pub ty: TypeNode,
 }
 
-pub type AssigneeNode<'ast> = Node<Assignee<'ast>>;
+impl Variable {
+    pub fn new(id: Identifier, ty: TypeNode) -> Self {
+        Self { id, ty }
+    }
+}
 
-impl<'ast> fmt::Display for Assignee<'ast> {
+pub type VariableNode = Node<Variable>;
+
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}: {}", self.id, self.ty)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Assignee {
+    Identifier(Identifier),
+}
+
+pub type AssigneeNode = Node<Assignee>;
+
+impl fmt::Display for Assignee {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Assignee::Identifier(ref var) => write!(f, "{}", var),
@@ -76,20 +82,21 @@ impl<'ast> fmt::Display for Assignee<'ast> {
     }
 }
 
-pub enum Statement<'ast> {
-    Return(ExpressionNode<'ast>),
-    Declaration(VariableNode<'ast>),
-    Definition(AssigneeNode<'ast>, ExpressionNode<'ast>),
+#[derive(Debug, Clone)]
+pub enum Statement {
+    Return(ExpressionNode),
+    Declaration(VariableNode),
+    Definition(AssigneeNode, ExpressionNode),
 }
 
-pub type StatementNode<'ast> = Node<Statement<'ast>>;
+pub type StatementNode = Node<Statement>;
 
-impl<'ast> fmt::Display for Statement<'ast> {
+impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Statement::Return(ref expr) => write!(f, "return {}", expr),
-            Statement::Declaration(ref var) => write!(f, "{}", var),
-            Statement::Definition(ref assignee, ref expr) => write!(f, "{} = {}", assignee, expr),
+            Statement::Return(ref expr) => write!(f, "\treturn {};", expr),
+            Statement::Declaration(ref var) => write!(f, "\tlet {};", var),
+            Statement::Definition(ref assignee, ref expr) => write!(f, "\t{} = {};", assignee, expr),
         }
     }
 }
@@ -100,12 +107,43 @@ pub struct FunctionSignature {
     pub output: TypeNode,
 }
 
-type ParameterNode<'ast> = VariableNode<'ast>;
+pub type ParameterNode = VariableNode;
 
-pub struct Function<'ast> {
-    pub arguments: Vec<ParameterNode<'ast>>,
-    pub statements: Vec<StatementNode<'ast>>,
-    pub signature: FunctionSignature,
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub identifier: Identifier,
+    pub parameters: Vec<ParameterNode>,
+    pub statements: Vec<StatementNode>,
+    pub returns: TypeNode,
+    // pub signature: FunctionSignature,
+    pub public: bool,
 }
 
-pub type FunctionNode<'ast> = Node<Function<'ast>>;
+impl Function {
+    pub fn new(identifier: Identifier,
+               parameters: Vec<ParameterNode>,
+               statements: Vec<StatementNode>,
+               returns: TypeNode,
+               public: bool) -> Self {
+        Self { identifier, parameters, statements, returns, public }
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}func {}(", if self.public { "#" } else { "" }, self.identifier)?;
+        for (i, param) in self.parameters.iter().enumerate() {
+            write!(f, "{}", param)?;
+            if i < self.parameters.len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        writeln!(f, "): {} {{", self.returns)?;
+        for stat in self.statements.iter() {
+            writeln!(f, "{}", stat)?;
+        }
+        write!(f, "}}")
+    }
+}
+
+pub type FunctionNode = Node<Function>;

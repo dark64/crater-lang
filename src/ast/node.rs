@@ -1,11 +1,17 @@
-use crate::parser::Position;
+// use crate::parser::Position;
 use core::fmt;
 
 #[derive(Debug, Clone)]
 pub struct Node<T> {
-    pub start: Position,
-    pub end: Position,
+    // pub start: Position,
+    // pub end: Position,
     pub value: T,
+}
+
+impl<T: fmt::Display> Node<T> {
+    pub fn from(value: T) -> Self {
+        Self { value }
+    }
 }
 
 impl<T: fmt::Display> fmt::Display for Node<T> {

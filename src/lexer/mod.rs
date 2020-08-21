@@ -15,52 +15,58 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Keyword,
     VarType,
     Identifier,
     IntLiteral,
     StrLiteral,
+    BoolLiteral,
     Operator,
+    Assignment,
     LParen,
     RParen,
     LBrace,
     RBrace,
     LBracket,
     RBracket,
+    Hashtag,
     Comma,
     Semicolon,
     Colon,
 }
 
-static TOKENS: [(TokenType, &'static str); 15] = [
-    (TokenType::Keyword, r"^\b(func|return)\b"),
-    (TokenType::VarType, r"^\b(u?int(?:8|16|32|64)|bool)\b"),
-    (TokenType::Identifier, r"^\b[a-zA-Z0-9_]+\b"),
+static TOKENS: [(TokenType, &'static str); 18] = [
+    (TokenType::Keyword, r"^\b(let|func|return)\b"),
+    (TokenType::VarType, r"^\b(u?int32|bool)\b"),
+    (TokenType::BoolLiteral, r"^\b(true|false)\b"),
     (TokenType::IntLiteral, r"^\b[0-9]+\b"),
     (TokenType::StrLiteral, r#"^"([^"\\]|\\.)*""#),
+    (TokenType::Identifier, r"^\b[a-zA-Z0-9_]+\b"),
     (TokenType::Operator, r"^(\+|-|/|\*)"),
+    (TokenType::Assignment, r"^="),
     (TokenType::LParen, r"^\("),
     (TokenType::RParen, r"^\)"),
     (TokenType::LBracket, r"^\["),
     (TokenType::RBracket, r"^\]"),
     (TokenType::LBrace, r"^\{"),
     (TokenType::RBrace, r"^\}"),
+    (TokenType::Hashtag, r"^#"),
     (TokenType::Comma, r"^,"),
-    (TokenType::Semicolon, r"^:"),
-    (TokenType::Colon, r"^;"),
+    (TokenType::Semicolon, r"^;"),
+    (TokenType::Colon, r"^:"),
 ];
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    token_type: TokenType,
-    value: String,
+    pub ty: TokenType,
+    pub value: String,
 }
 
 impl Token {
     pub fn new(token_type: TokenType, value: String) -> Self {
-        Self { token_type, value }
+        Self { ty: token_type, value }
     }
 }
 
