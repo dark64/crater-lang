@@ -44,7 +44,7 @@ static TOKENS: [(TokenType, &'static str); 18] = [
     (TokenType::IntLiteral, r"^\b[0-9]+\b"),
     (TokenType::StrLiteral, r#"^"([^"\\]|\\.)*""#),
     (TokenType::Identifier, r"^\b[a-zA-Z0-9_]+\b"),
-    (TokenType::Operator, r"^(\+|-|/|\*)"),
+    (TokenType::Operator, r"^(\+|-|\*\*?|/|%|==|!=|<=?|>=?|&&|\|\||!|\?)"),
     (TokenType::Assignment, r"^="),
     (TokenType::LParen, r"^\("),
     (TokenType::RParen, r"^\)"),

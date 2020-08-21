@@ -1,5 +1,5 @@
 use crate::ast::node::Node;
-use crate::ast::types::TypeNode;
+use crate::ast::types::{TypeNode, Type};
 use core::fmt;
 // use std::collections::HashMap;
 
@@ -15,9 +15,25 @@ pub enum Expression {
     Int32Constant(i32),
     BooleanConstant(bool),
     Add(Box<ExpressionNode>, Box<ExpressionNode>),
-    Subtract(Box<ExpressionNode>, Box<ExpressionNode>),
-    Multiply(Box<ExpressionNode>, Box<ExpressionNode>),
-    Divide(Box<ExpressionNode>, Box<ExpressionNode>),
+    Sub(Box<ExpressionNode>, Box<ExpressionNode>),
+    Mul(Box<ExpressionNode>, Box<ExpressionNode>),
+    Div(Box<ExpressionNode>, Box<ExpressionNode>),
+    Pow(Box<ExpressionNode>, Box<ExpressionNode>),
+    Mod(Box<ExpressionNode>, Box<ExpressionNode>),
+    Eq(Box<ExpressionNode>, Box<ExpressionNode>),
+    Neq(Box<ExpressionNode>, Box<ExpressionNode>),
+    Lt(Box<ExpressionNode>, Box<ExpressionNode>),
+    Le(Box<ExpressionNode>, Box<ExpressionNode>),
+    Ge(Box<ExpressionNode>, Box<ExpressionNode>),
+    Gt(Box<ExpressionNode>, Box<ExpressionNode>),
+    And(Box<ExpressionNode>, Box<ExpressionNode>),
+    Or(Box<ExpressionNode>, Box<ExpressionNode>),
+    Not(Box<ExpressionNode>),
+    Ternary(
+        Box<ExpressionNode>,
+        Box<ExpressionNode>,
+        Box<ExpressionNode>,
+    ),
     FunctionCall(FunctionIdentifier, Vec<ExpressionNode>),
 }
 
@@ -30,9 +46,23 @@ impl fmt::Display for Expression {
             Expression::Identifier(ref identifier) => write!(f, "{}", identifier),
             Expression::BooleanConstant(b) => write!(f, "{}", b),
             Expression::Add(ref left, ref right) => write!(f, "({} + {})", left, right),
-            Expression::Subtract(ref lhs, ref rhs) => write!(f, "({} - {})", lhs, rhs),
-            Expression::Multiply(ref lhs, ref rhs) => write!(f, "({} * {})", lhs, rhs),
-            Expression::Divide(ref lhs, ref rhs) => write!(f, "({} / {})", lhs, rhs),
+            Expression::Sub(ref left, ref right) => write!(f, "({} - {})", left, right),
+            Expression::Mul(ref left, ref right) => write!(f, "({} * {})", left, right),
+            Expression::Div(ref left, ref right) => write!(f, "({} / {})", left, right),
+            Expression::Pow(ref left, ref right) => write!(f, "({} ** {})", left, right),
+            Expression::Mod(ref left, ref right) => write!(f, "({} % {})", left, right),
+            Expression::Eq(ref left, ref right) => write!(f, "({} == {})", left, right),
+            Expression::Neq(ref left, ref right) => write!(f, "({} != {})", left, right),
+            Expression::Lt(ref left, ref right) => write!(f, "({} < {})", left, right),
+            Expression::Le(ref left, ref right) => write!(f, "({} <= {})", left, right),
+            Expression::Ge(ref left, ref right) => write!(f, "({} >= {})", left, right),
+            Expression::Gt(ref left, ref right) => write!(f, "({} > {})", left, right),
+            Expression::And(ref left, ref right) => write!(f, "({} && {})", left, right),
+            Expression::Or(ref left, ref right) => write!(f, "({} || {})", left, right),
+            Expression::Not(ref expr) => write!(f, "!{}", expr),
+            Expression::Ternary(ref condition, ref consequent, ref alternative) => {
+                write!(f, "{} ? {} : {}", condition, consequent, alternative)
+            }
             Expression::FunctionCall(ref i, ref p) => {
                 write!(f, "{}(", i)?;
                 for (i, param) in p.iter().enumerate() {
@@ -84,9 +114,10 @@ impl fmt::Display for Assignee {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Return(ExpressionNode),
-    Declaration(VariableNode),
-    Definition(AssigneeNode, ExpressionNode),
+    Return(Box<ExpressionNode>),
+    Declaration(Box<VariableNode>),
+    Definition(Box<VariableNode>, Box<ExpressionNode>),
+    Assignment(Box<AssigneeNode>, Box<ExpressionNode>),
 }
 
 pub type StatementNode = Node<Statement>;
@@ -96,7 +127,10 @@ impl fmt::Display for Statement {
         match *self {
             Statement::Return(ref expr) => write!(f, "\treturn {};", expr),
             Statement::Declaration(ref var) => write!(f, "\tlet {};", var),
-            Statement::Definition(ref assignee, ref expr) => {
+            Statement::Definition(ref var, ref expr) => {
+                write!(f, "\tlet {} = {};", var, expr)
+            }
+            Statement::Assignment(ref assignee, ref expr) => {
                 write!(f, "\t{} = {};", assignee, expr)
             }
         }
@@ -105,8 +139,8 @@ impl fmt::Display for Statement {
 
 #[derive(Debug, Clone)]
 pub struct FunctionSignature {
-    pub inputs: Vec<TypeNode>,
-    pub output: TypeNode,
+    pub inputs: Vec<Type>,
+    pub output: Type,
 }
 
 pub type ParameterNode = VariableNode;

@@ -9,10 +9,10 @@ use crate::parser::Parser;
 
 fn main() {
     let code: &str = r#"
-        func main(a: int32, b: int32): int32 {
-            let c: int32;
-            c = a * b;
-            return c;
+        #func main(a: int32, b: int32): bool {
+            let c: int32 = (a ** 2) + (b * b);
+            c = sqrt(c);
+            return (c > 10) ? true : false;
         }
     "#;
 

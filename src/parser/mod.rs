@@ -34,13 +34,10 @@ impl<'ast> Parser {
 
     fn consume_function(&mut self) -> FunctionNode {
         let public = self.peek(TokenType::Hashtag);
-        let token = if public {
+        if public {
             self.eat(TokenType::Hashtag);
-            self.eat(TokenType::Keyword)
-        } else {
-            self.eat(TokenType::Keyword)
-        };
-
+        }
+        let token = self.eat(TokenType::Keyword);
         match token.value.as_str() {
             "func" => {
                 let identifier = self.eat(TokenType::Identifier);
@@ -80,17 +77,20 @@ impl<'ast> Parser {
 
     fn consume_statement(&mut self) -> StatementNode {
         let token = self.eat_unchecked();
-        match token.ty {
+        let statement = match token.ty {
             TokenType::Keyword => match token.value.as_str() {
                 "let" => {
                     let var = self.consume_variable_definition();
-                    self.eat(TokenType::Semicolon);
-                    StatementNode::from(Statement::Declaration(var))
+                    if self.peek(TokenType::Assignment) {
+                        self.eat(TokenType::Assignment);
+                        StatementNode::from(Statement::Definition(Box::new(var), Box::new(self.consume_expression())))
+                    } else {
+                        StatementNode::from(Statement::Declaration(Box::new(var)))
+                    }
                 }
                 "return" => {
                     let expr = self.consume_expression();
-                    self.eat(TokenType::Semicolon);
-                    StatementNode::from(Statement::Return(expr))
+                    StatementNode::from(Statement::Return(Box::new(expr)))
                 }
                 _ => panic!("Invalid keyword in statement {:?}", token),
             },
@@ -98,11 +98,13 @@ impl<'ast> Parser {
                 self.eat(TokenType::Assignment);
                 let expr = self.consume_expression();
                 let assignee = AssigneeNode::from(Assignee::Identifier(token.value));
-                self.eat(TokenType::Semicolon);
-                StatementNode::from(Statement::Definition(assignee, expr))
+                StatementNode::from(Statement::Assignment(Box::new(assignee), Box::new(expr)))
             }
             _ => panic!("Invalid statement {:?}", token),
-        }
+        };
+
+        self.eat(TokenType::Semicolon);
+        statement
     }
 
     fn consume_expression(&mut self) -> ExpressionNode {
@@ -124,6 +126,12 @@ impl<'ast> Parser {
                     ExpressionNode::from(Expression::Identifier(token.value))
                 }
             }
+            TokenType::Operator => {
+                match token.value.as_str() {
+                    "!" => ExpressionNode::from(Expression::Not(Box::new(self.consume_expression()))),
+                    _ => panic!("Unexpected operator token {:?}", token)
+                }
+            }
             TokenType::LParen => {
                 let expression = self.consume_expression();
                 self.eat(TokenType::RParen);
@@ -138,9 +146,24 @@ impl<'ast> Parser {
 
             let expression = match operator.value.as_str() {
                 "+" => Expression::Add(Box::new(left), Box::new(right)),
-                "-" => Expression::Subtract(Box::new(left), Box::new(right)),
-                "*" => Expression::Multiply(Box::new(left), Box::new(right)),
-                "/" => Expression::Divide(Box::new(left), Box::new(right)),
+                "-" => Expression::Sub(Box::new(left), Box::new(right)),
+                "*" => Expression::Mul(Box::new(left), Box::new(right)),
+                "/" => Expression::Div(Box::new(left), Box::new(right)),
+                "**" => Expression::Pow(Box::new(left), Box::new(right)),
+                "%" => Expression::Mod(Box::new(left), Box::new(right)),
+                "==" => Expression::Eq(Box::new(left), Box::new(right)),
+                "!=" => Expression::Neq(Box::new(left), Box::new(right)),
+                "<" => Expression::Lt(Box::new(left), Box::new(right)),
+                "<=" => Expression::Le(Box::new(left), Box::new(right)),
+                ">=" => Expression::Ge(Box::new(left), Box::new(right)),
+                ">" => Expression::Gt(Box::new(left), Box::new(right)),
+                "&&" => Expression::And(Box::new(left), Box::new(right)),
+                "||" => Expression::Or(Box::new(left), Box::new(right)),
+                "?" => {
+                    self.eat(TokenType::Colon);
+                    let alternative = self.consume_expression();
+                    Expression::Ternary(Box::new(left), Box::new(right), Box::new(alternative))
+                }
                 _ => unreachable!(),
             };
             ExpressionNode::from(expression)
