@@ -66,7 +66,10 @@ pub struct Token {
 
 impl Token {
     pub fn new(token_type: TokenType, value: String) -> Self {
-        Self { ty: token_type, value }
+        Self {
+            ty: token_type,
+            value,
+        }
     }
 }
 

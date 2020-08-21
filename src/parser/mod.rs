@@ -1,8 +1,11 @@
+use crate::ast::types::TypeNode;
+use crate::ast::{
+    Assignee, AssigneeNode, Expression, ExpressionNode, Function, FunctionNode, ParameterNode,
+    Statement, StatementNode, Variable, VariableNode,
+};
 use crate::lexer::{Token, TokenType};
 use core::fmt;
-use crate::ast::{Function, Statement, FunctionNode, StatementNode, ExpressionNode, Expression, AssigneeNode, Assignee, Variable, VariableNode, ParameterNode};
-use std::convert::{TryInto};
-use crate::ast::types::TypeNode;
+use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub struct Position {
@@ -53,11 +56,11 @@ impl<'ast> Parser {
                     parameters,
                     statements,
                     TypeNode::from(return_type.value.try_into().unwrap()),
-                    public
+                    public,
                 );
                 FunctionNode::from(function)
-            },
-            _ => panic!("Invalid function definition")
+            }
+            _ => panic!("Invalid function definition"),
         }
     }
 
@@ -78,50 +81,55 @@ impl<'ast> Parser {
     fn consume_statement(&mut self) -> StatementNode {
         let token = self.eat_unchecked();
         match token.ty {
-            TokenType::Keyword => {
-                match token.value.as_str() {
-                    "let" => {
-                        let var = self.consume_variable_definition();
-                        self.eat(TokenType::Semicolon);
-                        StatementNode::from(Statement::Declaration(var))
-                    },
-                    "return" => {
-                        let expr = self.consume_expression();
-                        self.eat(TokenType::Semicolon);
-                        StatementNode::from(Statement::Return(expr))
-                    }
-                    _ => panic!("Invalid keyword in statement {:?}", token)
+            TokenType::Keyword => match token.value.as_str() {
+                "let" => {
+                    let var = self.consume_variable_definition();
+                    self.eat(TokenType::Semicolon);
+                    StatementNode::from(Statement::Declaration(var))
                 }
-            }
+                "return" => {
+                    let expr = self.consume_expression();
+                    self.eat(TokenType::Semicolon);
+                    StatementNode::from(Statement::Return(expr))
+                }
+                _ => panic!("Invalid keyword in statement {:?}", token),
+            },
             TokenType::Identifier => {
                 self.eat(TokenType::Assignment);
                 let expr = self.consume_expression();
                 let assignee = AssigneeNode::from(Assignee::Identifier(token.value));
                 self.eat(TokenType::Semicolon);
                 StatementNode::from(Statement::Definition(assignee, expr))
-            },
-            _ => panic!("Invalid statement {:?}", token)
+            }
+            _ => panic!("Invalid statement {:?}", token),
         }
     }
 
     fn consume_expression(&mut self) -> ExpressionNode {
         let token = self.eat_unchecked();
         let left = match token.ty {
-            TokenType::BoolLiteral => ExpressionNode::from(Expression::BooleanConstant(token.value.eq("true"))),
-            TokenType::IntLiteral => ExpressionNode::from(Expression::Int32Constant(token.value.parse::<i32>().unwrap())),
+            TokenType::BoolLiteral => {
+                ExpressionNode::from(Expression::BooleanConstant(token.value.eq("true")))
+            }
+            TokenType::IntLiteral => ExpressionNode::from(Expression::Int32Constant(
+                token.value.parse::<i32>().unwrap(),
+            )),
             TokenType::Identifier => {
                 if self.peek(TokenType::LParen) {
-                    ExpressionNode::from(Expression::FunctionCall(token.value, self.consume_function_args()))
+                    ExpressionNode::from(Expression::FunctionCall(
+                        token.value,
+                        self.consume_function_args(),
+                    ))
                 } else {
                     ExpressionNode::from(Expression::Identifier(token.value))
                 }
-            },
+            }
             TokenType::LParen => {
                 let expression = self.consume_expression();
                 self.eat(TokenType::RParen);
                 expression
             }
-            _ => panic!("Unexpected token {:?}", token)
+            _ => panic!("Unexpected token {:?}", token),
         };
 
         if self.peek(TokenType::Operator) {
@@ -133,7 +141,7 @@ impl<'ast> Parser {
                 "-" => Expression::Subtract(Box::new(left), Box::new(right)),
                 "*" => Expression::Multiply(Box::new(left), Box::new(right)),
                 "/" => Expression::Divide(Box::new(left), Box::new(right)),
-                _ => unreachable!()
+                _ => unreachable!(),
             };
             ExpressionNode::from(expression)
         } else {
@@ -145,7 +153,10 @@ impl<'ast> Parser {
         let identifier = self.eat(TokenType::Identifier);
         self.eat(TokenType::Colon);
         let ty = self.eat(TokenType::VarType);
-        VariableNode::from(Variable::new(identifier.value, TypeNode::from(ty.value.try_into().unwrap())))
+        VariableNode::from(Variable::new(
+            identifier.value,
+            TypeNode::from(ty.value.try_into().unwrap()),
+        ))
     }
 
     fn consume_function_params(&mut self) -> Vec<ParameterNode> {
@@ -195,7 +206,10 @@ impl<'ast> Parser {
         if token.ty == expected_type {
             token
         } else {
-            panic!("Expected token type {:?}, but got {:?}", expected_type, token);
+            panic!(
+                "Expected token type {:?}, but got {:?}",
+                expected_type, token
+            );
         }
     }
 

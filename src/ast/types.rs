@@ -8,7 +8,7 @@ pub type TypeError = String;
 pub enum Type {
     Int(usize),
     UInt(usize),
-    Boolean
+    Boolean,
 }
 
 pub type TypeNode = Node<Type>;
@@ -18,7 +18,7 @@ impl fmt::Display for Type {
         match self {
             Type::Int(bit_width) => write!(f, "int{}", bit_width),
             Type::UInt(bit_width) => write!(f, "uint{}", bit_width),
-            Type::Boolean => write!(f, "bool")
+            Type::Boolean => write!(f, "bool"),
         }
     }
 }
@@ -31,7 +31,7 @@ impl TryFrom<String> for Type {
             "int32" => Ok(Type::Int(32)),
             "uint32" => Ok(Type::UInt(32)),
             "bool" => Ok(Type::Boolean),
-            _ => Err(TypeError::from(format!("Unknown type {}", value)))
+            _ => Err(TypeError::from(format!("Unknown type {}", value))),
         }
     }
 }

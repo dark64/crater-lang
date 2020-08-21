@@ -1,5 +1,5 @@
 use crate::ast::node::Node;
-use crate::ast::types::{TypeNode};
+use crate::ast::types::TypeNode;
 use core::fmt;
 // use std::collections::HashMap;
 
@@ -96,7 +96,9 @@ impl fmt::Display for Statement {
         match *self {
             Statement::Return(ref expr) => write!(f, "\treturn {};", expr),
             Statement::Declaration(ref var) => write!(f, "\tlet {};", var),
-            Statement::Definition(ref assignee, ref expr) => write!(f, "\t{} = {};", assignee, expr),
+            Statement::Definition(ref assignee, ref expr) => {
+                write!(f, "\t{} = {};", assignee, expr)
+            }
         }
     }
 }
@@ -120,18 +122,31 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(identifier: Identifier,
-               parameters: Vec<ParameterNode>,
-               statements: Vec<StatementNode>,
-               returns: TypeNode,
-               public: bool) -> Self {
-        Self { identifier, parameters, statements, returns, public }
+    pub fn new(
+        identifier: Identifier,
+        parameters: Vec<ParameterNode>,
+        statements: Vec<StatementNode>,
+        returns: TypeNode,
+        public: bool,
+    ) -> Self {
+        Self {
+            identifier,
+            parameters,
+            statements,
+            returns,
+            public,
+        }
     }
 }
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}func {}(", if self.public { "#" } else { "" }, self.identifier)?;
+        write!(
+            f,
+            "{}func {}(",
+            if self.public { "#" } else { "" },
+            self.identifier
+        )?;
         for (i, param) in self.parameters.iter().enumerate() {
             write!(f, "{}", param)?;
             if i < self.parameters.len() - 1 {
