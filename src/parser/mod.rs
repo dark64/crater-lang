@@ -1,11 +1,11 @@
-use crate::ast::types::TypeNode;
+use crate::ast::types::{Type, TypeNode};
 use crate::ast::{
-    Assignee, AssigneeNode, Expression, ExpressionNode, Function, FunctionNode, ParameterNode,
-    Statement, StatementNode, Variable, VariableNode,
+    Assignee, AssigneeNode, Expression, ExpressionNode, Function, FunctionNode, FunctionSignature,
+    ParameterNode, Statement, StatementNode, Variable, VariableNode,
 };
 use crate::lexer::{Token, TokenType};
 use core::fmt;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 #[derive(Debug, Clone)]
 pub struct Position {
@@ -42,17 +42,30 @@ impl<'ast> Parser {
             "func" => {
                 let identifier = self.eat(TokenType::Identifier);
                 let parameters = self.consume_function_params();
-                self.eat(TokenType::Colon);
 
-                let return_type = self.eat(TokenType::VarType);
+                let returns = if self.peek(TokenType::Colon) {
+                    self.eat(TokenType::Colon);
+                    let return_type = self.eat(TokenType::VarType);
+                    Some(TypeNode::from(Type::try_from(return_type.value).unwrap()))
+                } else {
+                    None
+                };
+
                 let statements = self.consume_block();
+                let signature = FunctionSignature {
+                    inputs: parameters
+                        .iter()
+                        .map(|p| p.value.ty.value.clone())
+                        .collect(),
+                    output: returns.clone().map(|p| p.value),
+                };
 
-                self.eat(TokenType::RBrace);
                 let function = Function::new(
                     identifier.value,
                     parameters,
                     statements,
-                    TypeNode::from(return_type.value.try_into().unwrap()),
+                    returns,
+                    signature,
                     public,
                 );
                 FunctionNode::from(function)
@@ -64,50 +77,74 @@ impl<'ast> Parser {
     fn consume_block(&mut self) -> Vec<StatementNode> {
         let mut statements: Vec<StatementNode> = vec![];
         self.eat(TokenType::LBrace);
-
-        if self.peek(TokenType::RBrace) {
-            self.eat(TokenType::RBrace);
-        } else {
-            while !self.peek(TokenType::RBrace) {
-                statements.push(self.consume_statement());
-            }
+        while !self.peek(TokenType::RBrace) {
+            statements.push(self.consume_statement());
         }
+        self.eat(TokenType::RBrace);
         statements
     }
 
     fn consume_statement(&mut self) -> StatementNode {
         let token = self.eat_unchecked();
-        let statement = match token.ty {
+        match token.ty {
             TokenType::Keyword => match token.value.as_str() {
                 "let" => {
                     let var = self.consume_variable_definition();
-                    if self.peek(TokenType::Assignment) {
+                    let statement = if self.peek(TokenType::Assignment) {
                         self.eat(TokenType::Assignment);
-                        StatementNode::from(Statement::Definition(Box::new(var), Box::new(self.consume_expression())))
+                        StatementNode::from(Statement::Definition(
+                            Box::new(var),
+                            Box::new(self.consume_expression()),
+                        ))
                     } else {
                         StatementNode::from(Statement::Declaration(Box::new(var)))
-                    }
+                    };
+                    self.eat(TokenType::Semicolon);
+                    statement
                 }
                 "return" => {
                     let expr = self.consume_expression();
+                    self.eat(TokenType::Semicolon);
                     StatementNode::from(Statement::Return(Box::new(expr)))
+                }
+                "if" => {
+                    let condition = self.consume_expression();
+                    let statements = self.consume_block();
+                    let alternative = match self.peek_next(TokenType::Keyword) {
+                        Some(keyword) => match keyword.value.as_str() {
+                            "else" => {
+                                self.eat(TokenType::Keyword);
+                                Some(Box::new(self.consume_block()))
+                            }
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    StatementNode::from(Statement::Condition(
+                        Box::new(condition),
+                        Box::new(statements),
+                        alternative,
+                    ))
                 }
                 _ => panic!("Invalid keyword in statement {:?}", token),
             },
             TokenType::Identifier => {
-                self.eat(TokenType::Assignment);
-                let expr = self.consume_expression();
-                let assignee = AssigneeNode::from(Assignee::Identifier(token.value));
-                StatementNode::from(Statement::Assignment(Box::new(assignee), Box::new(expr)))
+                let statement = if self.peek(TokenType::LParen) {
+                    Statement::FunctionCall(token.value, self.consume_function_args())
+                } else {
+                    self.eat(TokenType::Assignment);
+                    let expr = self.consume_expression();
+                    let assignee = AssigneeNode::from(Assignee::Identifier(token.value));
+                    Statement::Assignment(Box::new(assignee), Box::new(expr))
+                };
+                self.eat(TokenType::Semicolon);
+                StatementNode::from(statement)
             }
             _ => panic!("Invalid statement {:?}", token),
-        };
-
-        self.eat(TokenType::Semicolon);
-        statement
+        }
     }
 
-    fn consume_expression(&mut self) -> ExpressionNode {
+    fn consume_basic_expression(&mut self) -> ExpressionNode {
         let token = self.eat_unchecked();
         let left = match token.ty {
             TokenType::BoolLiteral => {
@@ -116,6 +153,7 @@ impl<'ast> Parser {
             TokenType::IntLiteral => ExpressionNode::from(Expression::Int32Constant(
                 token.value.parse::<i32>().unwrap(),
             )),
+            TokenType::StrLiteral => ExpressionNode::from(Expression::StringConstant(token.value)),
             TokenType::Identifier => {
                 if self.peek(TokenType::LParen) {
                     ExpressionNode::from(Expression::FunctionCall(
@@ -126,12 +164,10 @@ impl<'ast> Parser {
                     ExpressionNode::from(Expression::Identifier(token.value))
                 }
             }
-            TokenType::Operator => {
-                match token.value.as_str() {
-                    "!" => ExpressionNode::from(Expression::Not(Box::new(self.consume_expression()))),
-                    _ => panic!("Unexpected operator token {:?}", token)
-                }
-            }
+            TokenType::Operator => match token.value.as_str() {
+                "!" => ExpressionNode::from(Expression::Not(Box::new(self.consume_expression()))),
+                _ => panic!("Unexpected operator token {:?}", token),
+            },
             TokenType::LParen => {
                 let expression = self.consume_expression();
                 self.eat(TokenType::RParen);
@@ -142,9 +178,9 @@ impl<'ast> Parser {
 
         if self.peek(TokenType::Operator) {
             let operator = self.eat(TokenType::Operator);
-            let right = self.consume_expression();
+            let right = self.consume_basic_expression();
 
-            let expression = match operator.value.as_str() {
+            ExpressionNode::from(match operator.value.as_str() {
                 "+" => Expression::Add(Box::new(left), Box::new(right)),
                 "-" => Expression::Sub(Box::new(left), Box::new(right)),
                 "*" => Expression::Mul(Box::new(left), Box::new(right)),
@@ -159,16 +195,28 @@ impl<'ast> Parser {
                 ">" => Expression::Gt(Box::new(left), Box::new(right)),
                 "&&" => Expression::And(Box::new(left), Box::new(right)),
                 "||" => Expression::Or(Box::new(left), Box::new(right)),
-                "?" => {
-                    self.eat(TokenType::Colon);
-                    let alternative = self.consume_expression();
-                    Expression::Ternary(Box::new(left), Box::new(right), Box::new(alternative))
-                }
                 _ => unreachable!(),
-            };
-            ExpressionNode::from(expression)
+            })
         } else {
             left
+        }
+    }
+
+    fn consume_expression(&mut self) -> ExpressionNode {
+        let expression = self.consume_basic_expression();
+        if self.peek(TokenType::QuestionMark) {
+            self.eat(TokenType::QuestionMark);
+            let consequence = self.consume_expression();
+            self.eat(TokenType::Colon);
+            let alternative = self.consume_expression();
+
+            ExpressionNode::from(Expression::Ternary(
+                Box::new(expression),
+                Box::new(consequence),
+                Box::new(alternative),
+            ))
+        } else {
+            expression
         }
     }
 
@@ -194,11 +242,9 @@ impl<'ast> Parser {
                 self.eat(TokenType::Comma);
                 parameters.push(self.consume_variable_definition());
             }
-            self.eat(TokenType::RParen);
-        } else {
-            self.eat(TokenType::RParen);
         }
 
+        self.eat(TokenType::RParen);
         parameters
     }
 
@@ -206,17 +252,14 @@ impl<'ast> Parser {
         let mut expressions: Vec<ExpressionNode> = vec![];
         self.eat(TokenType::LParen);
 
-        if self.peek(TokenType::RParen) {
-            self.eat(TokenType::RParen);
-        } else {
+        if !self.peek(TokenType::RParen) {
             expressions.push(self.consume_expression());
             while self.peek(TokenType::Comma) {
                 self.eat(TokenType::Comma);
                 expressions.push(self.consume_expression());
             }
-            self.eat(TokenType::RParen);
         }
-
+        self.eat(TokenType::RParen);
         expressions
     }
 
@@ -227,6 +270,7 @@ impl<'ast> Parser {
     fn eat(&mut self, expected_type: TokenType) -> Token {
         let token = self.tokens.remove(0);
         if token.ty == expected_type {
+            println!("{:?}", token);
             token
         } else {
             panic!(
@@ -234,6 +278,15 @@ impl<'ast> Parser {
                 expected_type, token
             );
         }
+    }
+
+    fn peek_next(&self, expected_type: TokenType) -> Option<&Token> {
+        let token = self.tokens.get(0).unwrap();
+        return if token.ty == expected_type {
+            Some(token)
+        } else {
+            None
+        };
     }
 
     fn peek(&self, expected_type: TokenType) -> bool {

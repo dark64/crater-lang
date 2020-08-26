@@ -1,5 +1,5 @@
 use crate::ast::node::Node;
-use crate::ast::types::{TypeNode, Type};
+use crate::ast::types::{Type, TypeNode};
 use core::fmt;
 // use std::collections::HashMap;
 
@@ -14,6 +14,7 @@ pub enum Expression {
     Identifier(Identifier),
     Int32Constant(i32),
     BooleanConstant(bool),
+    StringConstant(String),
     Add(Box<ExpressionNode>, Box<ExpressionNode>),
     Sub(Box<ExpressionNode>, Box<ExpressionNode>),
     Mul(Box<ExpressionNode>, Box<ExpressionNode>),
@@ -44,7 +45,8 @@ impl fmt::Display for Expression {
         match *self {
             Expression::Int32Constant(ref i) => write!(f, "{}", i),
             Expression::Identifier(ref identifier) => write!(f, "{}", identifier),
-            Expression::BooleanConstant(b) => write!(f, "{}", b),
+            Expression::BooleanConstant(ref b) => write!(f, "{}", b),
+            Expression::StringConstant(ref s) => write!(f, "{}", s),
             Expression::Add(ref left, ref right) => write!(f, "({} + {})", left, right),
             Expression::Sub(ref left, ref right) => write!(f, "({} - {})", left, right),
             Expression::Mul(ref left, ref right) => write!(f, "({} * {})", left, right),
@@ -63,11 +65,11 @@ impl fmt::Display for Expression {
             Expression::Ternary(ref condition, ref consequent, ref alternative) => {
                 write!(f, "{} ? {} : {}", condition, consequent, alternative)
             }
-            Expression::FunctionCall(ref i, ref p) => {
-                write!(f, "{}(", i)?;
-                for (i, param) in p.iter().enumerate() {
+            Expression::FunctionCall(ref id, ref expressions) => {
+                write!(f, "{}(", id)?;
+                for (i, param) in expressions.iter().enumerate() {
                     write!(f, "{}", param)?;
-                    if i < p.len() - 1 {
+                    if i < expressions.len() - 1 {
                         write!(f, ", ")?;
                     }
                 }
@@ -118,6 +120,12 @@ pub enum Statement {
     Declaration(Box<VariableNode>),
     Definition(Box<VariableNode>, Box<ExpressionNode>),
     Assignment(Box<AssigneeNode>, Box<ExpressionNode>),
+    Condition(
+        Box<ExpressionNode>,
+        Box<Vec<StatementNode>>,
+        Option<Box<Vec<StatementNode>>>,
+    ),
+    FunctionCall(FunctionIdentifier, Vec<ExpressionNode>),
 }
 
 pub type StatementNode = Node<Statement>;
@@ -125,14 +133,44 @@ pub type StatementNode = Node<Statement>;
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Statement::Return(ref expr) => write!(f, "\treturn {};", expr),
-            Statement::Declaration(ref var) => write!(f, "\tlet {};", var),
-            Statement::Definition(ref var, ref expr) => {
-                write!(f, "\tlet {} = {};", var, expr)
-            }
+            Statement::Return(ref expr) => writeln!(f, "return {};", expr),
+            Statement::Declaration(ref var) => writeln!(f, "let {};", var),
+            Statement::Definition(ref var, ref expr) => writeln!(f, "let {} = {};", var, expr),
             Statement::Assignment(ref assignee, ref expr) => {
-                write!(f, "\t{} = {};", assignee, expr)
+                writeln!(f, "{} = {};", assignee, expr)
             }
+            Statement::Condition(..) => self.fmt_indented(f, 1),
+            Statement::FunctionCall(ref id, ref expressions) => {
+                write!(f, "{}(", id)?;
+                for (i, param) in expressions.iter().enumerate() {
+                    write!(f, "{}", param)?;
+                    if i < expressions.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                writeln!(f, ");")
+            }
+        }
+    }
+}
+
+impl Statement {
+    pub fn fmt_indented(&self, f: &mut fmt::Formatter, depth: usize) -> fmt::Result {
+        match self {
+            Statement::Condition(ref expr, ref consequent, ref alternative) => {
+                writeln!(f, "{}if {} {{", "\t".repeat(depth), expr)?;
+                for stat in consequent.iter() {
+                    stat.value.fmt_indented(f, depth + 1)?;
+                }
+                if let Some(alternative) = alternative {
+                    writeln!(f, "{} }} else {{", "\t".repeat(depth))?;
+                    for stat in alternative.iter() {
+                        stat.value.fmt_indented(f, depth + 1)?;
+                    }
+                }
+                writeln!(f, "{}}}", "\t".repeat(depth))
+            }
+            s => write!(f, "{}{}", "\t".repeat(depth), s),
         }
     }
 }
@@ -140,7 +178,7 @@ impl fmt::Display for Statement {
 #[derive(Debug, Clone)]
 pub struct FunctionSignature {
     pub inputs: Vec<Type>,
-    pub output: Type,
+    pub output: Option<Type>,
 }
 
 pub type ParameterNode = VariableNode;
@@ -150,8 +188,8 @@ pub struct Function {
     pub identifier: Identifier,
     pub parameters: Vec<ParameterNode>,
     pub statements: Vec<StatementNode>,
-    pub returns: TypeNode,
-    // pub signature: FunctionSignature,
+    pub returns: Option<TypeNode>,
+    pub signature: FunctionSignature,
     pub public: bool,
 }
 
@@ -160,7 +198,8 @@ impl Function {
         identifier: Identifier,
         parameters: Vec<ParameterNode>,
         statements: Vec<StatementNode>,
-        returns: TypeNode,
+        returns: Option<TypeNode>,
+        signature: FunctionSignature,
         public: bool,
     ) -> Self {
         Self {
@@ -168,6 +207,7 @@ impl Function {
             parameters,
             statements,
             returns,
+            signature,
             public,
         }
     }
@@ -187,9 +227,13 @@ impl fmt::Display for Function {
                 write!(f, ", ")?;
             }
         }
-        writeln!(f, "): {} {{", self.returns)?;
+        write!(f, ")")?;
+        if let Some(ty) = &self.returns {
+            write!(f, ": {}", ty)?;
+        }
+        writeln!(f, " {{")?;
         for stat in self.statements.iter() {
-            writeln!(f, "{}", stat)?;
+            stat.value.fmt_indented(f, 1)?
         }
         write!(f, "}}")
     }

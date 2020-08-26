@@ -9,6 +9,7 @@ pub enum Type {
     Int(usize),
     UInt(usize),
     Boolean,
+    String,
 }
 
 pub type TypeNode = Node<Type>;
@@ -19,6 +20,7 @@ impl fmt::Display for Type {
             Type::Int(bit_width) => write!(f, "int{}", bit_width),
             Type::UInt(bit_width) => write!(f, "uint{}", bit_width),
             Type::Boolean => write!(f, "bool"),
+            Type::String => write!(f, "string"),
         }
     }
 }
@@ -31,6 +33,7 @@ impl TryFrom<String> for Type {
             "int32" => Ok(Type::Int(32)),
             "uint32" => Ok(Type::UInt(32)),
             "bool" => Ok(Type::Boolean),
+            "string" => Ok(Type::String),
             _ => Err(TypeError::from(format!("Unknown type {}", value))),
         }
     }

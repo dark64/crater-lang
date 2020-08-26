@@ -23,7 +23,9 @@ pub enum TokenType {
     IntLiteral,
     StrLiteral,
     BoolLiteral,
+    Comment,
     Operator,
+    QuestionMark,
     Assignment,
     LParen,
     RParen,
@@ -37,14 +39,19 @@ pub enum TokenType {
     Colon,
 }
 
-static TOKENS: [(TokenType, &'static str); 18] = [
-    (TokenType::Keyword, r"^\b(let|func|return)\b"),
-    (TokenType::VarType, r"^\b(u?int32|bool)\b"),
+static TOKENS: [(TokenType, &'static str); 20] = [
+    (TokenType::Keyword, r"^\b(let|func|return|if|else)\b"),
+    (TokenType::VarType, r"^\b(u?int32|bool|string)\b"),
     (TokenType::BoolLiteral, r"^\b(true|false)\b"),
     (TokenType::IntLiteral, r"^\b[0-9]+\b"),
     (TokenType::StrLiteral, r#"^"([^"\\]|\\.)*""#),
     (TokenType::Identifier, r"^\b[a-zA-Z0-9_]+\b"),
-    (TokenType::Operator, r"^(\+|-|\*\*?|/|%|==|!=|<=?|>=?|&&|\|\||!|\?)"),
+    (TokenType::Comment, r"^//.*"),
+    (
+        TokenType::Operator,
+        r"^(\+|-|\*\*?|/|%|==|!=|<=?|>=?|&&|\|\||!)",
+    ),
+    (TokenType::QuestionMark, r"^\?"),
     (TokenType::Assignment, r"^="),
     (TokenType::LParen, r"^\("),
     (TokenType::RParen, r"^\)"),
@@ -89,7 +96,10 @@ impl<'a> Lexer<'a> {
     pub fn tokenize(&mut self) -> Result<Vec<Token>, Error> {
         let mut tokens: Vec<Token> = Vec::new();
         while !self.code.is_empty() {
-            tokens.push(self.tokenize_single()?);
+            let token = self.tokenize_single()?;
+            if token.ty != TokenType::Comment {
+                tokens.push(token);
+            }
             self.code = self.code.trim_start();
         }
         Ok(tokens)
