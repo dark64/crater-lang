@@ -1,7 +1,6 @@
 use crate::ast::node::Node;
-use crate::ast::types::{Type, TypeNode};
+use crate::ast::types::{Type};
 use core::fmt;
-// use std::collections::HashMap;
 
 pub mod node;
 pub mod types;
@@ -15,6 +14,7 @@ pub enum Expression {
     Int32Constant(i32),
     BooleanConstant(bool),
     StringConstant(String),
+
     Add(Box<ExpressionNode>, Box<ExpressionNode>),
     Sub(Box<ExpressionNode>, Box<ExpressionNode>),
     Mul(Box<ExpressionNode>, Box<ExpressionNode>),
@@ -35,7 +35,7 @@ pub enum Expression {
         Box<ExpressionNode>,
         Box<ExpressionNode>,
     ),
-    FunctionCall(FunctionIdentifier, Vec<ExpressionNode>),
+    FunctionCall(FunctionIdentifier, Vec<ExpressionNode>)
 }
 
 pub type ExpressionNode = Node<Expression>;
@@ -66,15 +66,12 @@ impl fmt::Display for Expression {
                 write!(f, "{} ? {} : {}", condition, consequent, alternative)
             }
             Expression::FunctionCall(ref id, ref expressions) => {
-                write!(f, "{}(", id)?;
-                for (i, param) in expressions.iter().enumerate() {
-                    write!(f, "{}", param)?;
-                    if i < expressions.len() - 1 {
-                        write!(f, ", ")?;
-                    }
-                }
-                write!(f, ")")
-            }
+                let args = expressions
+                    .iter()
+                    .map(|e| format!("{}", e))
+                    .collect::<Vec<String>>();
+                write!(f, "{}({})", id, args.join(", "))
+            },
         }
     }
 }
@@ -82,11 +79,11 @@ impl fmt::Display for Expression {
 #[derive(Debug, Clone)]
 pub struct Variable {
     pub id: Identifier,
-    pub ty: TypeNode,
+    pub ty: Type,
 }
 
 impl Variable {
-    pub fn new(id: Identifier, ty: TypeNode) -> Self {
+    pub fn new(id: Identifier, ty: Type) -> Self {
         Self { id, ty }
     }
 }
@@ -116,16 +113,13 @@ impl fmt::Display for Assignee {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Return(Box<ExpressionNode>),
-    Declaration(Box<VariableNode>),
-    Definition(Box<VariableNode>, Box<ExpressionNode>),
-    Assignment(Box<AssigneeNode>, Box<ExpressionNode>),
-    Condition(
-        Box<ExpressionNode>,
-        Box<Vec<StatementNode>>,
-        Option<Box<Vec<StatementNode>>>,
-    ),
+    Return(ExpressionNode),
+    Declaration(VariableNode),
+    Definition(VariableNode, ExpressionNode),
+    Assignment(AssigneeNode, ExpressionNode),
+    Condition(ExpressionNode, Vec<StatementNode>, Option<Vec<StatementNode>>),
     FunctionCall(FunctionIdentifier, Vec<ExpressionNode>),
+    FunctionDef(FunctionNode)
 }
 
 pub type StatementNode = Node<Statement>;
@@ -139,17 +133,15 @@ impl fmt::Display for Statement {
             Statement::Assignment(ref assignee, ref expr) => {
                 writeln!(f, "{} = {};", assignee, expr)
             }
-            Statement::Condition(..) => self.fmt_indented(f, 1),
+            Statement::Condition(..) => self.fmt_indented(f, 0),
             Statement::FunctionCall(ref id, ref expressions) => {
-                write!(f, "{}(", id)?;
-                for (i, param) in expressions.iter().enumerate() {
-                    write!(f, "{}", param)?;
-                    if i < expressions.len() - 1 {
-                        write!(f, ", ")?;
-                    }
-                }
-                writeln!(f, ");")
+                let args = expressions
+                    .iter()
+                    .map(|e| format!("{}", e))
+                    .collect::<Vec<String>>();
+                writeln!(f, "{}({});", id, args.join(", "))
             }
+            Statement::FunctionDef(ref func) => write!(f, "{}", func)
         }
     }
 }
@@ -185,57 +177,49 @@ pub type ParameterNode = VariableNode;
 
 #[derive(Debug, Clone)]
 pub struct Function {
-    pub identifier: Identifier,
+    pub id: FunctionIdentifier,
     pub parameters: Vec<ParameterNode>,
     pub statements: Vec<StatementNode>,
-    pub returns: Option<TypeNode>,
-    pub signature: FunctionSignature,
-    pub public: bool,
+    pub returns: Option<Type>,
+    pub signature: FunctionSignature
 }
 
 impl Function {
     pub fn new(
-        identifier: Identifier,
+        id: FunctionIdentifier,
         parameters: Vec<ParameterNode>,
         statements: Vec<StatementNode>,
-        returns: Option<TypeNode>,
-        signature: FunctionSignature,
-        public: bool,
+        returns: Option<Type>
     ) -> Self {
+        let signature = FunctionSignature {
+            inputs: parameters.clone().iter().map(|p| p.value.ty).collect(),
+            output: returns.clone().map(|r| r)
+        };
         Self {
-            identifier,
+            id,
             parameters,
             statements,
             returns,
-            signature,
-            public,
+            signature
         }
     }
 }
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}func {}(",
-            if self.public { "#" } else { "" },
-            self.identifier
-        )?;
-        for (i, param) in self.parameters.iter().enumerate() {
-            write!(f, "{}", param)?;
-            if i < self.parameters.len() - 1 {
-                write!(f, ", ")?;
-            }
-        }
-        write!(f, ")")?;
-        if let Some(ty) = &self.returns {
-            write!(f, ": {}", ty)?;
-        }
-        writeln!(f, " {{")?;
+        let params = self.parameters
+            .iter()
+            .map(|e| format!("{}", e.value))
+            .collect::<Vec<String>>();
+        let return_type = match self.returns.as_ref() {
+            Some(r) => format!(": {}", r),
+            None => String::default()
+        };
+        writeln!(f, "func {}({}){} {{", self.id, params.join(", "), return_type)?;
         for stat in self.statements.iter() {
-            stat.value.fmt_indented(f, 1)?
+            stat.value.fmt_indented(f, 1)?;
         }
-        write!(f, "}}")
+        writeln!(f, "}}")
     }
 }
 

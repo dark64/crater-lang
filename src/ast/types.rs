@@ -1,18 +1,15 @@
-use crate::ast::node::Node;
 use core::fmt;
 use std::convert::TryFrom;
 
 pub type TypeError = String;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Type {
     Int(usize),
     UInt(usize),
     Boolean,
-    String,
+    String
 }
-
-pub type TypeNode = Node<Type>;
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -20,7 +17,7 @@ impl fmt::Display for Type {
             Type::Int(bit_width) => write!(f, "int{}", bit_width),
             Type::UInt(bit_width) => write!(f, "uint{}", bit_width),
             Type::Boolean => write!(f, "bool"),
-            Type::String => write!(f, "string"),
+            Type::String => write!(f, "string")
         }
     }
 }
@@ -34,7 +31,7 @@ impl TryFrom<String> for Type {
             "uint32" => Ok(Type::UInt(32)),
             "bool" => Ok(Type::Boolean),
             "string" => Ok(Type::String),
-            _ => Err(TypeError::from(format!("Unknown type {}", value))),
+            _ => Err(TypeError::from(format!("unknown type `{}`", value))),
         }
     }
 }

@@ -1,34 +1,34 @@
-extern crate regex;
+use crate::lexer::Lexer;
+use crate::parser::Parser;
 
+mod common;
 mod ast;
 mod lexer;
 mod parser;
 
-use crate::lexer::Lexer;
-use crate::parser::Parser;
-
 fn main() {
     let code: &str = r#"
-        #func main(a: int32, b: int32): string {
-            let c: int32 = (a ** 2) + (b ** 2);
-
-            if (a <= b) && ((c < b) || (c >= a)) && (a < 2) {
-                print("hello {}!", "world");
-            } else {
-                print("bye world!");
-            }
-
-            let f: bool;
-            f = a < b ? true : false;
-            f = f && c > 10;
-
-            return "peekaboo";
+        func test(a: int32): int32 {
+            return a;
         }
+
+        func main(a: int32): int32 {
+            return test(a);
+        }
+
+        let b: int32 = main(3);
+        b = 4;
+        return b;
     "#;
 
-    let mut lexer = Lexer::new(code);
-    let tokens = lexer.tokenize().unwrap();
+    let lexer = Lexer::new(code);
+    let statements = Parser::new(lexer).parse()
+        .unwrap_or_else(|e| {
+            println!("({}) {}", e.pos, e);
+            std::process::exit(1);
+        });
 
-    let function = Parser::new(tokens).parse();
-    println!("\n{}", function);
+    for s in statements {
+        print!("{}", s);
+    }
 }
